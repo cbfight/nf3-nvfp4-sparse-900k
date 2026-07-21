@@ -1,0 +1,129 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-07-20",
+  "hardware": {
+    "nodes": 4,
+    "system": "NVIDIA DGX Spark",
+    "gpu": "NVIDIA GB10",
+    "driver": "580.159.03",
+    "fabric": "RoCEv2 jumbo-MTU rail"
+  },
+  "sources": {
+    "checkpoint": "madeby561/GLM-5.2-MXFP8-NVFP4-NF3-Hybrid",
+    "checkpoint_revision": "c3b696ed315be5f8371695d308d72b0742b5d2f9",
+    "vllm_commit": "70c49aad686417aa2f15123731971d56edb4ded6",
+    "b12x_commit": "1377d5f22c98de0c17d9b3f35a5b56d7587992fa",
+    "validated_image_id": "sha256:786af9b760056578eb57869e66d27f43ccf6fd048cf220fa0e877278468618a7"
+  },
+  "common_configuration": {
+    "tensor_parallel_size": 4,
+    "max_num_batched_tokens": 8192,
+    "max_cudagraph_capture_size": 32,
+    "gpu_memory_utilization": 0.88,
+    "quantization": "nvfp4_nf3_hybrid",
+    "attention_backend": "B12X_MLA_SPARSE",
+    "kv_cache_dtype": "nvfp4_ds_mla",
+    "moe_backend": "b12x",
+    "mtp_speculative_tokens": 3,
+    "sparse_index_pattern": "FFFSSSFSSSFSSSFSSSFSSSFSSSFSSSFSSSFSSSFSSSFSSSFSSSFSSSFSSSFSSSFSSSFSSSFSSS",
+    "prefix_caching": true,
+    "chunked_prefill": true,
+    "async_scheduling": true,
+    "temperature": 0,
+    "decode_tokens_per_sample": 512
+  },
+  "profiles": [
+    {
+      "name": "context900",
+      "configuration": {
+        "decode_context_parallel_size": 4,
+        "max_model_len": 900000,
+        "max_num_seqs": 4,
+        "kv_cache_memory_bytes_per_rank": 8589934592,
+        "logical_kv_tokens_reported": 927645,
+        "small_collective": "b12x_a2a",
+        "small_collective_max_tokens": 64,
+        "large_collective": "ag_rs"
+      },
+      "throughput": {
+        "single_stream_median_tokens_per_second": 18.050,
+        "concurrency": 4,
+        "concurrent_aggregate_tokens_per_second": 37.978,
+        "prefill_prompt_tokens": 17945,
+        "prefill_approximation_tokens_per_second": 442.247,
+        "streaming_decode_tokens_per_second": 18.817,
+        "median_ttft_seconds": 0.5639,
+        "long_prompt_streaming_ttft_seconds": 40.9291
+      },
+      "acceptance": {
+        "functional_checks_passed": 6,
+        "functional_checks_total": 6,
+        "hermes_tool_count": 91,
+        "hermes_prompt_tokens": 23047,
+        "hermes_elapsed_seconds": 52.9112,
+        "hermes_http_status": 200,
+        "hermes_finish_reason": "stop",
+        "private_capture_sha256": "a8745a7c7202ec4e607cd993d30a4c5790e62589cf8126ed65b875dc70f0a7da",
+        "private_body_sha256": "0fc3c46ed8314d098aad56c918487b73a0e186ddf247745164d4731818d49581",
+        "deep_context_prompt_tokens": 880007,
+        "deep_context_elapsed_seconds": 2169.407,
+        "deep_context_marker_passed": true
+      },
+      "memory_watch": {
+        "duration_seconds": 2700,
+        "samples_per_rank": 87,
+        "minimum_mem_available_kb_by_anonymous_rank": [5317700, 7315812, 7339108, 7686500],
+        "maximum_swap_used_kb_by_anonymous_rank": [0, 0, 0, 0],
+        "unhealthy_samples": 0,
+        "oom_killed": false,
+        "restart_count": 0
+      }
+    },
+    {
+      "name": "fast262",
+      "configuration": {
+        "decode_context_parallel_size": 1,
+        "max_model_len": 262144,
+        "max_num_seqs": 6,
+        "kv_cache_memory_bytes_per_rank": 10737418240,
+        "logical_kv_tokens_reported": 289920,
+        "collective": "ag_rs"
+      },
+      "throughput": {
+        "single_stream_median_tokens_per_second": 18.912,
+        "concurrency": 6,
+        "concurrent_aggregate_tokens_per_second": 48.207,
+        "prefill_prompt_tokens": 17940,
+        "prefill_approximation_tokens_per_second": 591.300,
+        "streaming_decode_tokens_per_second": 19.235,
+        "median_ttft_seconds": 0.8124,
+        "long_prompt_streaming_ttft_seconds": 29.2352
+      },
+      "acceptance": {
+        "functional_checks_passed": 6,
+        "functional_checks_total": 6,
+        "hermes_tool_count": 91,
+        "hermes_http_status": 200,
+        "hermes_finish_reason": "stop",
+        "deep_context_prompt_tokens": 250005,
+        "deep_context_marker_passed": true
+      },
+      "memory_watch": {
+        "duration_seconds": 900,
+        "samples_per_rank": 43,
+        "minimum_mem_available_kb_by_anonymous_rank": [6167164, 7924648, 7864404, 8206396],
+        "maximum_swap_used_kb_by_anonymous_rank": [0, 0, 0, 0],
+        "unhealthy_samples": 0,
+        "oom_killed": false,
+        "restart_count": 0
+      }
+    }
+  ],
+  "measurement_notes": {
+    "single_stream": "completion tokens divided by full non-streaming request wall time",
+    "concurrent": "sum of completion tokens divided by concurrent batch wall time",
+    "prefill": "prompt tokens divided by full one-output-token request wall time; approximation, not isolated kernel throughput",
+    "streaming_decode": "completion tokens after the first divided by wall time after the first visible token",
+    "ttft": "request start to first non-empty content or reasoning delta"
+  }
+}

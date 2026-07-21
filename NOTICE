@@ -1,0 +1,43 @@
+nf3-nvfp4-sparse-900k
+Copyright (c) 2026 wesleywong (cbfight)
+
+Licensed under the Apache License, Version 2.0.
+
+This repository includes and derives from work by others:
+
+1. The sparse-MLA Triton kernels and DeepGEMM bypass pattern originate
+   from CosmicRaisins/glm-5.2-gb10
+   (https://github.com/CosmicRaisins/glm-5.2-gb10), licensed under the
+   Apache License, Version 2.0. The launch harness pattern in
+   nf3-nvfp4/launch.sh derives from that project's launch.sh.
+
+2. The model checkpoint is madeby561/GLM-5.2-MXFP8-NVFP4-NF3-Hybrid
+   (https://huggingface.co/madeby561/GLM-5.2-MXFP8-NVFP4-NF3-Hybrid),
+   licensed under MIT. Not distributed in this repository.
+
+3. The vLLM fork with native NF3/NVFP4 hybrid support is
+   local-inference-lab/vllm
+   (https://github.com/local-inference-lab/vllm), licensed under the
+   Apache License, Version 2.0. Not distributed in this repository.
+
+4. The b12x CUDA-graph-safe decode kernel is from
+   voipmonitor/b12x (https://github.com/voipmonitor/b12x).
+
+5. The container image build harness is adapted from
+   m9e/blackwell-llm-docker
+   (https://github.com/m9e/blackwell-llm-docker), which itself derives
+   from eugr/spark-vllm-docker
+   (https://github.com/eugr/spark-vllm-docker).
+
+6. The serve configuration incorporates tuning contributed on the NVIDIA
+   developer forums by Zatz (unpruned QuantTrio recipe, thread 374125
+   posts #57/#84), back199640 (posts #80/#89), and ciprianveg
+   (post #107):
+   https://forums.developer.nvidia.com/t/glm-5-2-on-a-4x-gb10-cluster-22-tok-s-decode-256k-ctx-recipe/374125
+
+7. Additional discussion, testing, and clarifications that informed this
+   recipe came from NVIDIA developer forum thread 374125 participants
+   p33zy (alternative NVFP4 quantization path and hardware-acceleration
+   trade-offs) and aidendle94 (container/image resources shared for
+   GB10 that partially carried over):
+   https://forums.developer.nvidia.com/t/glm-5-2-on-a-4x-gb10-cluster-22-tok-s-decode-256k-ctx-recipe/374125

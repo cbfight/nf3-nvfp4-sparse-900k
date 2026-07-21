@@ -1,0 +1,129 @@
+diff --git a/vllm/model_executor/layers/quantization/nvfp4_nf3_hybrid.py b/vllm/model_executor/layers/quantization/nvfp4_nf3_hybrid.py
+--- a/vllm/model_executor/layers/quantization/nvfp4_nf3_hybrid.py
++++ b/vllm/model_executor/layers/quantization/nvfp4_nf3_hybrid.py
+@@ -26,6 +26,7 @@ launch with an expert map.
+ """
+ 
+ import dataclasses
++import os
+ import re
+ from typing import TYPE_CHECKING, Any
+ 
+@@ -65,7 +66,10 @@ _B12X_DECODE_M = 8
+ _NF3_GLOBAL_SCALE = 2.0**116
+ # Expert-chunk size for NF3 unpack/repack (bounds transient VRAM: the int32
+ # code planes are ~400 MB per 16 w13 experts at GLM-5.2 shapes).
+-_NF3_PACK_CHUNK = 16
++_NF3_PACK_CHUNK = max(1, int(os.environ.get("VLLM_NF3_PACK_CHUNK", "4")))
++_NF3_REPACK_EMPTY_CACHE = os.environ.get(
++    "VLLM_NF3_REPACK_EMPTY_CACHE", "1"
++) == "1"
+ 
+ 
+ def _read_hybrid_keys(config: Any) -> tuple[dict[str, list[int]] | None, str | None]:
+@@ -536,38 +540,68 @@ class NvFp4Nf3HybridMoEMethod(FusedMoEMethodBase):
+         state.emap_kept, state.emap_nf3 = emap_kept, emap_nf3
+         fc1_tile_n, fc2_tile_n = _B12X_TILES[1], _B12X_TILES[3]
+ 
++        def release_parameter(name: str) -> None:
++            param = getattr(layer, name)
++            param.data = param.data.new_empty((0,))
++
++        def release_cached_blocks() -> None:
++            if _NF3_REPACK_EMPTY_CACHE:
++                torch.cuda.synchronize(device)
++                torch.cuda.empty_cache()
++
+         if num_nf3 > 0:
+-            w13_planes, w2_planes = [], []
++            # Preallocate each final code plane and fill it a bounded chunk at
++            # a time. Keeping a list of all chunk outputs and torch.cat-ing it
++            # briefly duplicates the full tier while checkpoint tensors are
++            # still resident, which can exceed unified memory on Spark.
++            w13_nf3 = None
+             for start in range(0, num_nf3, _NF3_PACK_CHUNK):
+                 codes = _unpack_nf3_codes(
+                     layer.w13_weight_packed[start : start + _NF3_PACK_CHUNK], hidden
+                 )
+-                w13_planes.append(
+-                    _nf3_pack_code_experts(
+-                        codes, size_k=hidden, size_n=2 * inter, tile_n=fc1_tile_n
+-                    )
++                packed = _nf3_pack_code_experts(
++                    codes, size_k=hidden, size_n=2 * inter, tile_n=fc1_tile_n
+                 )
+-                del codes
++                if w13_nf3 is None:
++                    w13_nf3 = packed.new_empty((num_nf3, *packed.shape[1:]))
++                w13_nf3[start : start + packed.shape[0]].copy_(packed)
++                del codes, packed
++            assert w13_nf3 is not None
++            release_parameter("w13_weight_packed")
++            release_cached_blocks()
++
++            w13_scale_float = layer.w13_nf3_scale.float()
++            w13_nf3_scale = _nf3_pack_scale_experts(
++                w13_scale_float, size_k=hidden, size_n=2 * inter
++            )
++            del w13_scale_float
++            release_parameter("w13_nf3_scale")
++            release_cached_blocks()
++
++            w2_nf3 = None
+             for start in range(0, num_nf3, _NF3_PACK_CHUNK):
+                 codes = _unpack_nf3_codes(
+                     layer.w2_weight_packed[start : start + _NF3_PACK_CHUNK], inter
+                 )
+-                w2_planes.append(
+-                    _nf3_pack_code_experts(
+-                        codes, size_k=inter, size_n=hidden, tile_n=fc2_tile_n
+-                    )
++                packed = _nf3_pack_code_experts(
++                    codes, size_k=inter, size_n=hidden, tile_n=fc2_tile_n
+                 )
+-                del codes
+-            w13_nf3 = torch.cat(w13_planes, 0).contiguous()
+-            del w13_planes
+-            w2_nf3 = torch.cat(w2_planes, 0).contiguous()
+-            del w2_planes
+-            w13_nf3_scale = _nf3_pack_scale_experts(
+-                layer.w13_nf3_scale.float(), size_k=hidden, size_n=2 * inter
+-            )
++                if w2_nf3 is None:
++                    w2_nf3 = packed.new_empty((num_nf3, *packed.shape[1:]))
++                w2_nf3[start : start + packed.shape[0]].copy_(packed)
++                del codes, packed
++            assert w2_nf3 is not None
++            release_parameter("w2_weight_packed")
++            release_cached_blocks()
++
++            w2_scale_float = layer.w2_nf3_scale.float()
+             w2_nf3_scale = _nf3_pack_scale_experts(
+-                layer.w2_nf3_scale.float(), size_k=inter, size_n=hidden
++                w2_scale_float, size_k=inter, size_n=hidden
+             )
++            del w2_scale_float
++            release_parameter("w2_nf3_scale")
++            release_cached_blocks()
++
+             nf3_global = torch.full(
+                 (num_nf3,), _NF3_GLOBAL_SCALE, dtype=torch.float32, device=device
+             )
+@@ -637,15 +671,8 @@ class NvFp4Nf3HybridMoEMethod(FusedMoEMethodBase):
+             for name in ("w13_weight", "w2_weight", "w13_nv_scale", "w2_nv_scale"):
+                 param = getattr(layer, name)
+                 param.data = param.data.new_empty((0,))
+-        # Free the NF3 originals (both tiers now live in kernel format).
+-        for name in (
+-            "w13_weight_packed",
+-            "w2_weight_packed",
+-            "w13_nf3_scale",
+-            "w2_nf3_scale",
+-        ):
+-            param = getattr(layer, name)
+-            param.data = param.data.new_empty((0,))
++        # NF3 originals are released family-by-family during the streaming
++        # repack above, before the next family's transient allocations.
+ 
+     def _get_launch_pair(self, prepared: Any) -> tuple[Any, Any]:
+         """Compile (or fetch cached) preplanned launches for one tier.

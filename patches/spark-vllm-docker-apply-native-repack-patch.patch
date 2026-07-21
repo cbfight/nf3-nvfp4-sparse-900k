@@ -1,0 +1,17 @@
+diff --git a/Dockerfile b/Dockerfile
+--- a/Dockerfile
++++ b/Dockerfile
+@@ -209,6 +209,13 @@ RUN git apply --check /tmp/vllm-cuda13-family-archs.patch && \
+     git diff --check && \
+     grep -F '10.0f;11.0f;12.0f' CMakeLists.txt
+ 
++# Bound the native hybrid NF3 repack peak on unified-memory Spark systems.
++COPY vllm-native-nf3-streaming-repack.patch /tmp/vllm-native-nf3-streaming-repack.patch
++RUN git apply --check /tmp/vllm-native-nf3-streaming-repack.patch && \
++    git apply --verbose /tmp/vllm-native-nf3-streaming-repack.patch && \
++    git diff --check && \
++    grep -F 'VLLM_NF3_PACK_CHUNK' vllm/model_executor/layers/quantization/nvfp4_nf3_hybrid.py
++
+ RUN if [ -n "$VLLM_PRS" ]; then \
+         echo "Applying PRs: $VLLM_PRS"; \
+         for pr in $VLLM_PRS; do \

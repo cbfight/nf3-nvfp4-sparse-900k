@@ -1,0 +1,56 @@
+diff --git a/Dockerfile b/Dockerfile
+index 1cee3e2..865ad20 100644
+--- a/Dockerfile
++++ b/Dockerfile
+@@ -48,8 +48,8 @@ RUN apt update && \
+ # Additional deps
+ RUN --mount=type=cache,id=pip-cache,target=/root/.cache/pip \
+      python3 -m pip install --default-timeout=600 \
+-         torch torchvision torchaudio triton \
+-         --index-url https://download.pytorch.org/whl/nightly/cu130 && \
++         "torch==2.12.0+cu132" "torchvision==0.27.0+cu132" "triton==3.7.0" \
++         --index-url https://download.pytorch.org/whl/cu132 && \
+      python3 -m pip install --default-timeout=600 \
+          nvidia-nvshmem-cu13 "apache-tvm-ffi<0.2" filelock pynvml requests tqdm
+ 
+@@ -125,15 +125,9 @@ RUN if [ -n "$FLASHINFER_PRS" ]; then \
+         done; \
+     fi
+ 
+-# TEMPORARY patch for flashinfer autotune and other improvements (PR 2927)
+-RUN curl -fsL https://github.com/flashinfer-ai/flashinfer/pull/2927.diff -o pr2927.diff \
+-    && if git apply --reverse --check pr2927.diff 2>/dev/null; then \
+-         echo "PR #2927 already applied, skipping."; \
+-       else \
+-         echo "Applying FI PR #2927..."; \
+-         git apply -v pr2927.diff; \
+-       fi \
+-    && rm pr2927.diff
++# FlashInfer v0.6.14 already carries the SM120/SM121 arch handling needed
++# for DGX Spark. PR 2927 targets a different tree and does not apply here.
++RUN echo "Skipping FI PR #2927 for pinned FlashInfer v0.6.14"
+ 
+ # Apply patch to avoid re-downloading existing cubins
+ COPY flashinfer_cache.patch .
+@@ -414,8 +408,8 @@ ARG PRE_TRANSFORMERS=0
+ # Install deps
+ RUN --mount=type=cache,id=pip-cache,target=/root/.cache/pip \
+      python3 -m pip install --default-timeout=600 \
+-         torch torchvision torchaudio triton \
+-         --index-url https://download.pytorch.org/whl/nightly/cu130 && \
++         "torch==2.12.0+cu132" "torchvision==0.27.0+cu132" "triton==3.7.0" \
++         --index-url https://download.pytorch.org/whl/cu132 && \
+      python3 -m pip install --default-timeout=600 \
+          nvidia-nvshmem-cu13 "apache-tvm-ffi<0.2"
+ 
+@@ -442,8 +436,8 @@ ARG B12X_REF=main
+ ARG B12X_COMMIT=
+ RUN --mount=type=cache,id=pip-cache,target=/root/.cache/pip \
+     if [ -n "$B12X_REPO" ]; then \
+-        python3 -m pip install --default-timeout=600 "nvidia-cutlass-dsl[cu13]" && \
+-        python3 -m pip install --default-timeout=600 --force-reinstall --no-deps nvidia-cutlass-dsl-libs-cu13 && \
++        python3 -m pip install --default-timeout=600 "nvidia-cutlass-dsl[cu13]==4.5.2" && \
++        python3 -m pip install --default-timeout=600 --force-reinstall --no-deps "nvidia-cutlass-dsl-libs-cu13==4.5.2" && \
+         git clone --filter=blob:none "$B12X_REPO" /tmp/b12x-src && \
+         cd /tmp/b12x-src && \
+         if echo "$B12X_REF" | grep -Eq '^[0-9a-f]{40}$'; then \

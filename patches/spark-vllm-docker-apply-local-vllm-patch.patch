@@ -1,0 +1,18 @@
+diff --git a/Dockerfile b/Dockerfile
+--- a/Dockerfile
++++ b/Dockerfile
+@@ -201,6 +201,14 @@ WORKDIR $VLLM_BASE_DIR/vllm
+ 
+ ARG VLLM_PRS=""
+ 
++# Reproducible local source correction for pinned/forked vLLM revisions.
++# The build wrapper stages this patch into the isolated Docker build context.
++COPY vllm-cuda13-family-archs.patch /tmp/vllm-cuda13-family-archs.patch
++RUN git apply --check /tmp/vllm-cuda13-family-archs.patch && \
++    git apply --verbose /tmp/vllm-cuda13-family-archs.patch && \
++    git diff --check && \
++    grep -F '10.0f;11.0f;12.0f' CMakeLists.txt
++
+ RUN if [ -n "$VLLM_PRS" ]; then \
+         echo "Applying PRs: $VLLM_PRS"; \
+         for pr in $VLLM_PRS; do \
